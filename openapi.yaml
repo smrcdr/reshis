@@ -1,0 +1,528 @@
+openapi: 3.0.3
+info:
+  title: Решись Авиа — API прогноза продаж
+  version: 1.0.0
+  description: |
+    Backend для варианта C кейса «Разработка».
+
+    Источник данных — `my_forecast.csv` (ML-часть) и `routes.csv`.
+    5 маршрутов из Москвы, даты вылета с 2026-06-01 по 2026-07-01.
+
+    **Формула прогноза** (для медианы и для каждого из 9 сценариев):
+    ```
+    wish = X_base_demand − price_sensitivity × (price − base_price)
+    buy  = floor( min(seats, max(0, wish)) )
+    ```
+    Для простого прогноза X = 0.5. `wish` округляется до 0.1.
+
+    Эндпоинт прогноза доступен только авторизованным пользователям (JWT Bearer).
+servers:
+  - url: http://localhost:3000/api
+    description: Локальная разработка
+  - url: https://{host}/api
+    description: Хостинг
+    variables:
+      host:
+        default: example.com
+
+tags:
+  - name: system
+    description: Служебные эндпоинты
+  - name: auth
+    description: Регистрация и авторизация
+  - name: routes
+    description: Справочник маршрутов и дат
+  - name: forecast
+    description: Прогноз спроса и продаж
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Проверка, что сервер жив
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Сервер работает, данные загружены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Регистрация нового пользователя
+      description: Создаёт пользователя и сразу возвращает токен (повторный вход не нужен).
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email уже занят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                statusCode: 409
+                error: Conflict
+                message: Пользователь с таким email уже существует
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Вход по email и паролю
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                statusCode: 401
+                error: Unauthorized
+                message: Неверный email или пароль
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Текущий пользователь
+      operationId: getMe
+      responses:
+        '200':
+          description: Данные пользователя по токену
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /routes:
+    get:
+      tags: [routes]
+      summary: Список маршрутов
+      description: Для выпадающих списков «Откуда / Куда» и подсказки по цене.
+      operationId: listRoutes
+      security: []
+      responses:
+        '200':
+          description: Все маршруты
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+
+  /routes/{route}/dates:
+    get:
+      tags: [routes]
+      summary: Доступные даты вылета по маршруту
+      operationId: listRouteDates
+      security: []
+      parameters:
+        - name: route
+          in: path
+          required: true
+          description: Код маршрута
+          schema:
+            $ref: '#/components/schemas/RouteCode'
+      responses:
+        '200':
+          description: Даты, для которых есть прогноз
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteDates'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /forecast:
+    post:
+      tags: [forecast]
+      summary: Прогноз продаж и распределение спроса при заданной цене
+      description: |
+        Возвращает простой прогноз (по медиане 0.5) и 9 сценариев для графика.
+        Значение `quantiles[q=0.5].wish` всегда совпадает с `wish`.
+        Если цена вне диапазона `price_min..price_max` маршрута, расчёт выполняется,
+        но в `warnings` добавляется предупреждение.
+      operationId: createForecast
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastRequest'
+      responses:
+        '200':
+          description: Прогноз рассчитан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Нет токена или токен недействителен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 401
+            error: Unauthorized
+            message: Требуется авторизация
+    NotFound:
+      description: Маршрут или рейс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 404
+            error: Not Found
+            message: Рейс MOW-AER на 2026-08-01 не найден
+    ValidationError:
+      description: Некорректные входные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 422
+            error: Unprocessable Entity
+            message:
+              - price must be a positive number
+              - date must be a valid ISO 8601 date string
+
+  schemas:
+    Error:
+      description: Формат ошибки NestJS
+      type: object
+      required: [statusCode, error, message]
+      properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+
+    Health:
+      type: object
+      required: [status, flights]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        flights:
+          type: integer
+          description: Сколько рейсов загружено из CSV
+          example: 155
+
+    AirportCode:
+      type: string
+      pattern: '^[A-Z]{3}$'
+      example: AER
+
+    RouteCode:
+      type: string
+      pattern: '^[A-Z]{3}-[A-Z]{3}$'
+      example: MOW-AER
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: manager@reshis.avia
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          description: Не более 72 байт UTF-8 (ограничение bcrypt)
+          example: s3cretPass
+        name:
+          type: string
+          maxLength: 100
+          example: Иван Петров
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: manager@reshis.avia
+        password:
+          type: string
+          format: password
+          example: s3cretPass
+
+    User:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: 'JWT, передаётся в заголовке `Authorization: Bearer <token>`'
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Время жизни токена в секундах
+          example: 86400
+        user:
+          $ref: '#/components/schemas/User'
+
+    Airport:
+      type: object
+      required: [code, city]
+      properties:
+        code:
+          $ref: '#/components/schemas/AirportCode'
+        city:
+          type: string
+          example: Сочи
+
+    Route:
+      type: object
+      required: [code, name, origin, destination, basePrice, priceMin, priceMax, priceSensitivity, costPerPassenger]
+      properties:
+        code:
+          $ref: '#/components/schemas/RouteCode'
+        name:
+          type: string
+          example: Москва — Сочи
+        origin:
+          $ref: '#/components/schemas/Airport'
+        destination:
+          $ref: '#/components/schemas/Airport'
+        basePrice:
+          type: number
+          example: 9000
+        priceMin:
+          type: number
+          example: 5400
+        priceMax:
+          type: number
+          example: 18000
+        priceSensitivity:
+          type: number
+          description: На сколько человек падает спрос при росте цены на 1 ₽
+          example: 0.141
+        costPerPassenger:
+          type: number
+          example: 4200
+
+    RouteDates:
+      type: object
+      required: [route, dates]
+      properties:
+        route:
+          $ref: '#/components/schemas/RouteCode'
+        dates:
+          type: array
+          items:
+            type: string
+            format: date
+          example: ['2026-06-01', '2026-06-02', '2026-06-03']
+
+    ForecastRequest:
+      type: object
+      required: [origin, destination, date, price]
+      properties:
+        origin:
+          $ref: '#/components/schemas/AirportCode'
+        destination:
+          $ref: '#/components/schemas/AirportCode'
+        date:
+          type: string
+          format: date
+          example: '2026-06-01'
+        price:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          example: 10000
+      example:
+        origin: MOW
+        destination: AER
+        date: '2026-06-01'
+        price: 10000
+
+    QuantileForecast:
+      type: object
+      required: [q, baseDemand, wish, buy, capped]
+      properties:
+        q:
+          type: number
+          enum: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        baseDemand:
+          type: number
+          description: X_base_demand — спрос при базовой цене в этом сценарии
+        wish:
+          type: number
+          description: Спрос при введённой цене (без ограничения по местам)
+        buy:
+          type: integer
+          description: Продажи с учётом мест, floor(min(seats, max(0, wish)))
+        capped:
+          type: boolean
+          description: true, если продажи упёрлись в число мест (wish ≥ seats)
+
+    ForecastResponse:
+      type: object
+      required: [route, routeName, date, price, basePrice, priceSensitivity, seats, wish, buy, soldOut, quantiles, warnings]
+      properties:
+        route:
+          $ref: '#/components/schemas/RouteCode'
+        routeName:
+          type: string
+        date:
+          type: string
+          format: date
+        price:
+          type: number
+        basePrice:
+          type: number
+        priceSensitivity:
+          type: number
+        seats:
+          type: integer
+          description: Число мест в самолёте
+        wish:
+          type: number
+          description: «Желают» — медианный спрос при введённой цене
+        buy:
+          type: integer
+          description: «Купят» — медианный прогноз продаж
+        soldOut:
+          type: boolean
+          description: true, если медианный спрос ≥ числа мест
+        loadFactor:
+          type: number
+          description: Заполняемость, buy / seats (0..1)
+        recommendedPrice:
+          type: number
+          description: Оптимальная цена из ML-прогноза (0.5_price)
+        revenue:
+          type: number
+          description: buy × price
+        profit:
+          type: number
+          description: buy × (price − cost_per_passenger)
+        quantiles:
+          type: array
+          minItems: 9
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/QuantileForecast'
+        warnings:
+          type: array
+          items:
+            type: string
+      example:
+        route: MOW-AER
+        routeName: Москва — Сочи
+        date: '2026-06-01'
+        price: 10000
+        basePrice: 9000
+        priceSensitivity: 0.141
+        seats: 900
+        wish: 695.0
+        buy: 695
+        soldOut: false
+        loadFactor: 0.772
+        recommendedPrice: 9565
+        revenue: 6950000
+        profit: 4031000
+        quantiles:
+          - { q: 0.1, baseDemand: 768, wish: 627.0, buy: 627, capped: false }
+          - { q: 0.2, baseDemand: 791, wish: 650.0, buy: 650, capped: false }
+          - { q: 0.3, baseDemand: 808, wish: 667.0, buy: 667, capped: false }
+          - { q: 0.4, baseDemand: 822, wish: 681.0, buy: 681, capped: false }
+          - { q: 0.5, baseDemand: 836, wish: 695.0, buy: 695, capped: false }
+          - { q: 0.6, baseDemand: 849, wish: 708.0, buy: 708, capped: false }
+          - { q: 0.7, baseDemand: 863, wish: 722.0, buy: 722, capped: false }
+          - { q: 0.8, baseDemand: 879, wish: 738.0, buy: 738, capped: false }
+          - { q: 0.9, baseDemand: 903, wish: 762.0, buy: 762, capped: false }
+        warnings: []
+
+security:
+  - bearerAuth: []

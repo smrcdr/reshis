@@ -1,0 +1,8 @@
+.env.production
+*.tar.gz
+.idea/
+.DS_Store
+**/._*
+caddy-before.json
+caddy-candidate.json
+build.log

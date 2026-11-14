@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/.idea
+**/coverage
+**/src/generated
+**/.git
+*.tar.gz
+caddy-before.json
+caddy-candidate.json
