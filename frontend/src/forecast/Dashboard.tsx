@@ -156,7 +156,9 @@ export function Dashboard({ user, onLogout }: {
 
       <footer className="footer muted">
         Прогноз: модель AutoGluon (ML-часть кейса), 9 квантилей спроса. Формула: желают = спрос при базовой цене −
-        чувствительность × (цена − базовая цена).
+        чувствительность × (цена − базовая цена), купят = min(мест, max(0, желают)).
+        <br/>
+        Разработка: Claude Code (Claude Opus 5.5). Аудит: OpenAI Codex (GPT-6.1 Sol).
       </footer>
     </div>);
 }

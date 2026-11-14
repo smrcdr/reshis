@@ -440,8 +440,8 @@ components:
           type: number
           description: Спрос при введённой цене (без ограничения по местам)
         buy:
-          type: integer
-          description: Продажи с учётом мест, floor(min(seats, max(0, wish)))
+          type: number
+          description: Продажи с учётом мест, min(seats, max(0, wish)), без округления
         capped:
           type: boolean
           description: true, если продажи упёрлись в число мест (wish ≥ seats)
@@ -470,8 +470,8 @@ components:
           type: number
           description: «Желают» — медианный спрос при введённой цене
         buy:
-          type: integer
-          description: «Купят» — медианный прогноз продаж
+          type: number
+          description: «Купят» — медианный прогноз продаж, min(seats, max(0, wish)), без округления
         soldOut:
           type: boolean
           description: true, если медианный спрос ≥ числа мест

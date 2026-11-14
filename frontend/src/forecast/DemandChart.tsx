@@ -81,7 +81,8 @@ export function DemandChart({ result }: {
         </p>
         {w.some((value) => value < 0) && (<p className="muted small">
             График показывает исходные значения по формуле, включая отрицательные.
-            В числе желающих они отображаются как 0 человек.
+            Отрицательный результат означает, что при этой цене модель не ожидает покупателей.
+            {median < 0 && ` Медиана по формуле: ${fmtOne(median)}; в карточке «Желают купить» — 0 человек.`}
           </p>)}
       </figcaption>
 
@@ -146,7 +147,7 @@ export function DemandChart({ result }: {
           
           <line x1={medianX} x2={medianX} y1={M.top - 12} y2={baseY} className="chart-median"/>
           <text x={medianX} y={M.top - 18} textAnchor={anchor(medianX)} className="chart-label chart-label-median">
-            Медиана: {fmtOne(median)}
+            {median < 0 ? 'По формуле' : 'Медиана'}: {fmtOne(median)}
           </text>
 
           
@@ -166,8 +167,8 @@ export function DemandChart({ result }: {
               {hovered.from >= seats
                 ? `${fmtInt(seats)} — все места`
                 : hovered.to > seats
-                    ? `${fmtInt(Math.max(0, Math.floor(hovered.from)))} – ${fmtInt(seats)}`
-                    : `${fmtInt(Math.max(0, Math.floor(hovered.from)))} – ${fmtInt(Math.max(0, Math.floor(hovered.to)))}`}
+                    ? `${fmtOne(Math.max(0, hovered.from))} – ${fmtInt(seats)}`
+                    : `${fmtOne(Math.max(0, hovered.from))} – ${fmtOne(Math.max(0, hovered.to))}`}
             </span>
           </div>)}
       </div>
@@ -177,7 +178,7 @@ export function DemandChart({ result }: {
           <i className="sw sw-bar"/> вероятность спроса
         </li>
         <li>
-          <i className="sw sw-median"/> медиана — «желают»
+          <i className="sw sw-median"/> {median < 0 ? 'медиана — результат формулы' : 'медиана — «желают»'}
         </li>
         <li>
           <i className="sw sw-seats"/> число мест

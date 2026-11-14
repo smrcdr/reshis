@@ -187,6 +187,21 @@ describe('API (e2e)', () => {
       ).wish,
     });
   });
+  it('POST /api/forecast — продажи по формуле без округления', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/forecast')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        origin: 'MOW',
+        destination: 'AER',
+        date: '2026-06-01',
+        price: 10064,
+      })
+      .expect(200);
+    const body = res.body as { wish: number; buy: number };
+    expect(body.wish).toBeCloseTo(685.976, 9);
+    expect(body.buy).toBeCloseTo(685.976, 9);
+  });
   it('POST /api/forecast — продажи упираются в места при низкой цене', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/forecast')

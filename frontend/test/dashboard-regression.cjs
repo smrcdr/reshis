@@ -23,7 +23,7 @@ const { createRoot } = require(rootPath + '/node_modules/react-dom/client');
 const { act } = React;
 const route = { code: 'MOW-AER', name: 'Москва — Сочи', origin: { code: 'MOW', city: 'Москва' }, destination: { code: 'AER', city: 'Сочи' }, basePrice: 9000, priceMin: 5400, priceMax: 18000, priceSensitivity: 0.141, costPerPassenger: 4200 };
 let delayNext = false, pending = [];
-const makeResult = (price) => { const quantiles = Array.from({ length: 9 }, (_, i) => { const baseDemand = 768 + i * 16; const wish = baseDemand - .141 * (price - 9000); return { q: (i + 1) / 10, baseDemand, wish, buy: Math.floor(Math.max(0, Math.min(900, wish))), capped: wish >= 900 }; }); return { route: route.code, routeName: route.name, date: '2026-06-01', price, seats: 900, wish: quantiles[4].wish, buy: quantiles[4].buy, soldOut: false, loadFactor: quantiles[4].buy / 900, quantiles, warnings: [] }; };
+const makeResult = (price) => { const quantiles = Array.from({ length: 9 }, (_, i) => { const baseDemand = 768 + i * 16; const wish = baseDemand - .141 * (price - 9000); return { q: (i + 1) / 10, baseDemand, wish, buy: Math.max(0, Math.min(900, wish)), capped: wish >= 900 }; }); return { route: route.code, routeName: route.name, date: '2026-06-01', price, seats: 900, wish: quantiles[4].wish, buy: quantiles[4].buy, soldOut: false, loadFactor: quantiles[4].buy / 900, quantiles, warnings: [] }; };
 global.__auditApi = { GET: async (p) => ({ data: p === '/routes' ? [route] : { route: route.code, dates: ['2026-06-01', '2026-06-02'] } }), POST: async (p, { body }) => { if (delayNext) {
         delayNext = false;
         return new Promise(resolve => pending.push(() => resolve({ data: makeResult(body.price), response: { status: 200 } })));

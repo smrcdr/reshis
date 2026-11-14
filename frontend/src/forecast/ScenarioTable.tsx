@@ -31,7 +31,7 @@ export function ScenarioTable({ result }: {
                   {s.wish < 0 && <div className="muted small">По формуле: {fmtOne(s.wish)}</div>}
                 </td>
                 <td className="num">
-                  {fmtInt(s.buy)}
+                  {fmtOne(s.buy)}
                   {s.capped && <span className="tag">все места</span>}
                 </td>
               </tr>))}

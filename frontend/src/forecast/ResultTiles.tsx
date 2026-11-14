@@ -6,13 +6,13 @@ interface Props {
 }
 export function ResultTiles({ result, onApplyPrice }: Props) {
     const { seats, wish, buy, soldOut, loadFactor = buy / seats, revenue, profit, recommendedPrice, price } = result;
-    const unmet = Math.max(0, Math.floor(wish) - seats);
+    const unmet = Math.max(0, wish - seats);
     const displayedWish = Math.max(0, wish);
     return (<div className="tiles">
       <article className="tile tile-hero">
         <h3>Купят билетов</h3>
         <p className="tile-value">
-          {fmtInt(buy)}
+          {fmtOne(buy)}
           <span className="tile-unit"> из {fmtInt(seats)}</span>
         </p>
         <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={seats} aria-valuenow={buy} aria-label="Заполняемость самолёта">
@@ -20,9 +20,9 @@ export function ResultTiles({ result, onApplyPrice }: Props) {
         </div>
         {soldOut ? (<p className="status status-warning">
             <span aria-hidden="true">●</span> Самолёт заполнен: спрос выше числа мест
-            {unmet > 0 && ` на ${fmtInt(unmet)}`}
+            {unmet > 0 && ` на ${fmtOne(unmet)}`}
           </p>) : (<p className="muted">
-            Заполняемость {fmtPct(loadFactor)} · свободно {fmtInt(seats - buy)} мест
+            Заполняемость {fmtPct(loadFactor)} · свободно {fmtOne(seats - buy)} мест
           </p>)}
       </article>
 
@@ -33,7 +33,9 @@ export function ResultTiles({ result, onApplyPrice }: Props) {
           <span className="tile-unit"> {people(displayedWish)}</span>
         </p>
         <p className="muted">медианный спрос при цене {fmtRub(price)}</p>
-        {wish < 0 && (<p className="muted small">По формуле: {fmtOne(wish)}.</p>)}
+        {wish < 0 && (<p className="muted small">
+            Результат линейной формулы: {fmtOne(wish)}. При этой цене модель не ожидает покупателей.
+          </p>)}
       </article>
 
       <article className="tile">
